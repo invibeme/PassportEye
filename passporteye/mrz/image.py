@@ -325,6 +325,7 @@ def read_mrz(filename, save_roi=False):
 
     :param save_roi: when this is True, the .aux['roi'] field will contain the Region of Interest where the MRZ was parsed from.
     """
+    print("\n\t\tRunning Fork by chekin.io\n\t\t===========================\n")
     p = MRZPipeline(filename)
     mrz = p.result
 

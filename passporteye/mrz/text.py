@@ -235,8 +235,8 @@ class MRZ(object):
             c = c + '<'*(30 - len(c))
         self.type = a[0:2]
         self.country = a[2:5]
-        self.number = a[5:14]
-        self.check_number = a[14]
+        self.number = self.get_number_by_country(line=a, country=self.country)
+        self.check_number = self.check_number_by_country(line=a, country=self.country)
         self.optional1 = a[15:30]
         self.date_of_birth = b[0:6]
         self.check_date_of_birth = b[6]
@@ -264,6 +264,29 @@ class MRZ(object):
         self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
         return self.valid_score == 100
 
+    def get_number_by_country(self, line, country):
+        """
+        Method to Getting ID by country
+        :param line: string (first line) of MRZ
+        :param country: cod of 3 Digits
+        :return:
+        """
+        if country == 'ESP':
+            return line[15:24]
+        else:
+            return line[5:14]
+
+    def check_number_by_country(self, line, country):
+        """
+        Method to Check the number ID by country
+        :param line: string (first line) of MRZ
+        :param country: cod of 3 Digits
+        :return:
+        """
+        if country == 'ESP':
+            return line[24]
+        else:
+            return line[14]
 
     def _parse_td2(self, a, b):
         len_a, len_b = len(a), len(b)
@@ -299,7 +322,6 @@ class MRZ(object):
         self.valid_score = 100*self.valid_score//(40+2+1+1)
         self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
         return self.valid_score == 100
-
 
     def _parse_td3(self, a, b):
         len_a, len_b = len(a), len(b)
