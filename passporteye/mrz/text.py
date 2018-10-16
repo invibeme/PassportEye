@@ -1,12 +1,13 @@
-'''
+"""
 PassportEye::MRZ: Machine-readable zone extraction and parsing.
 MRZ textual representation parsing.
 
 Author: Konstantin Tretyakov
 License: MIT
-'''
+"""
+
 from collections import OrderedDict
-from datetime import datetime
+
 
 class MRZ(object):
     """
@@ -159,21 +160,34 @@ class MRZ(object):
             return None
 
     def _parse(self, mrz_lines):
+        from .mrz_parsers import supported_parsers
+
         self.mrz_type = MRZ._guess_type(mrz_lines)
         try:
+            country = mrz_lines[0][2:5]  # Getting country COD (3 digits) on first line
+            parser = supported_parsers[country](mrz_lines)
+        except Exception:
+            parser = supported_parsers['default'](mrz_lines)
+
+        try:
             if self.mrz_type == 'TD1':
-                self.valid = self._parse_td1(*mrz_lines)
+                self.valid, dictionary = parser.parse_td1()
             elif self.mrz_type == 'TD2':
-                self.valid = self._parse_td2(*mrz_lines)
+                self.valid, dictionary = parser.parse_td2()
             elif self.mrz_type == 'TD3':
-                self.valid = self._parse_td3(*mrz_lines)
+                self.valid, dictionary = parser.parse_td3()
             elif self.mrz_type == 'MRVA':
-                self.valid = self._parse_mrv(*mrz_lines, length=44)
+                self.valid, dictionary = parser.parse_mrv(length=44)
             elif self.mrz_type == 'MRVB':
-                self.valid = self._parse_mrv(*mrz_lines, length=36)
+                self.valid, dictionary = parser.parse_mrv(length=36)
             else:
                 self.valid = False
                 self.valid_score = 0
+
+            # set all params of dictionary on class
+            for key in dictionary:
+                setattr(self, key, dictionary[key])
+
         except Exception:
             self.mrz_type = None
             self.valid = False
@@ -225,190 +239,11 @@ class MRZ(object):
                 result['method'] = self.aux['method']
         return result
 
-    def _parse_td1(self, a, b, c):
-        len_a, len_b, len_c = len(a), len(b), len(c)
-        if len(a) < 30:
-            a = a + '<'*(30 - len(a))
-        if len(b) < 30:
-            b = b + '<'*(30 - len(b))
-        if len(c) < 30:
-            c = c + '<'*(30 - len(c))
-        self.type = a[0:2]
-        self.country = a[2:5]
-        self.number = self.get_number_by_country(line=a, country=self.country)
-        self.check_number = self.check_number_by_country(line=a, country=self.country)
-        self.optional1 = a[15:30]
-        self.date_of_birth = b[0:6]
-        self.check_date_of_birth = b[6]
-        self.sex = b[7]
-        self.expiration_date = b[8:14]
-        self.check_expiration_date = b[14]
-        self.nationality = b[15:18]
-        self.optional2 = b[18:29]
-        self.check_composite = b[29]
-        surname_names = c.split('<<', 1)
-        if len(surname_names) < 2:
-            surname_names += ['']
-        self.surname, self.names = surname_names
-        self.names = self.names.replace('<', ' ').strip()
-        self.surname = self.surname.replace('<', ' ').strip()
-
-        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
-                            MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and MRZ._check_date(self.date_of_birth),
-                            MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and MRZ._check_date(self.expiration_date),
-                            MRZCheckDigit.compute(a[5:30] + b[0:7] + b[8:15] + b[18:29]) == self.check_composite]
-        self.valid_line_lengths = [len_a == 30, len_b == 30, len_c == 30]
-        self.valid_misc = [a[0] in 'IAC']
-        self.valid_score = 10*sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) + 1
-        self.valid_score = 100*self.valid_score//(40+3+1+1)
-        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
-        return self.valid_score == 100
-
-    def get_number_by_country(self, line, country):
-        """
-        Method to Getting ID by country
-        :param line: string (first line) of MRZ
-        :param country: cod of 3 Digits
-        :return:
-        """
-        if country == 'ESP':
-            return line[15:24]
-        else:
-            return line[5:14]
-
-    def check_number_by_country(self, line, country):
-        """
-        Method to Check the number ID by country
-        :param line: string (first line) of MRZ
-        :param country: cod of 3 Digits
-        :return:
-        """
-        if country == 'ESP':
-            return line[24]
-        else:
-            return line[14]
-
-    def _parse_td2(self, a, b):
-        len_a, len_b = len(a), len(b)
-        if len(a) < 36:
-            a = a + '<'*(36 - len(a))
-        if len(b) < 36:
-            b = b + '<'*(36 - len(b))
-        self.type = a[0:2]
-        self.country = a[2:5]
-        surname_names = a[5:36].split('<<', 1)
-        if len(surname_names) < 2:
-            surname_names += ['']
-        self.surname, self.names = surname_names
-        self.names = self.names.replace('<', ' ').strip()
-        self.surname = self.surname.replace('<', ' ').strip()
-        self.number = b[0:9]
-        self.check_number = b[9]
-        self.nationality = b[10:13]
-        self.date_of_birth = b[13:19]
-        self.check_date_of_birth = b[19]
-        self.sex = b[20]
-        self.expiration_date = b[21:27]
-        self.check_expiration_date = b[27]
-        self.optional1 = b[28:35]
-        self.check_composite = b[35]
-        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
-                             MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and MRZ._check_date(self.date_of_birth),
-                             MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and MRZ._check_date(self.expiration_date),
-                             MRZCheckDigit.compute(b[0:10] + b[13:20] + b[21:35]) == self.check_composite]
-        self.valid_line_lengths = [len_a == 36, len_b == 36]
-        self.valid_misc = [a[0] in 'ACI']
-        self.valid_score = 10*sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) +1
-        self.valid_score = 100*self.valid_score//(40+2+1+1)
-        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
-        return self.valid_score == 100
-
-    def _parse_td3(self, a, b):
-        len_a, len_b = len(a), len(b)
-        if len(a) < 44:
-            a = a + '<'*(44 - len(a))
-        if len(b) < 44:
-            b = b + '<'*(44 - len(b))
-        self.type = a[0:2]
-        self.country = a[2:5]
-        surname_names = a[5:44].split('<<', 1)
-        if len(surname_names) < 2:
-            surname_names += ['']
-        self.surname, self.names = surname_names
-        self.names = self.names.replace('<', ' ').strip()
-        self.surname = self.surname.replace('<', ' ').strip()
-        self.number = b[0:9]
-        self.check_number = b[9]
-        self.nationality = b[10:13]
-        self.date_of_birth = b[13:19]
-        self.check_date_of_birth = b[19]
-        self.sex = b[20]
-        self.expiration_date = b[21:27]
-        self.check_expiration_date = b[27]
-        self.personal_number = b[28:42]
-        self.check_personal_number = b[42]
-        self.check_composite = b[43]
-        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
-                             MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and MRZ._check_date(self.date_of_birth),
-                             MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and MRZ._check_date(self.expiration_date),
-                             MRZCheckDigit.compute(b[0:10] + b[13:20] + b[21:43]) == self.check_composite,
-                             ((self.check_personal_number == '<' or self.check_personal_number == '0') and self.personal_number == '<<<<<<<<<<<<<<') # PN is optional
-                                or MRZCheckDigit.compute(self.personal_number) == self.check_personal_number]
-        self.valid_line_lengths = [len_a == 44, len_b == 44]
-        self.valid_misc = [a[0] in 'P']
-        self.valid_score = 10*sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) +1
-        self.valid_score = 100*self.valid_score//(50+2+1+1)
-        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_personal_number, self.valid_composite = self.valid_check_digits
-        return self.valid_score == 100
-
-    @staticmethod
-    def _check_date(ymd):
-        try:
-            datetime.strptime(ymd, '%y%m%d')
-            return True
-        except ValueError:
-            return False
-
-    def _parse_mrv(self, a, b, length=44):
-        len_a, len_b = len(a), len(b)
-        if len(a) < length:
-            a = a + '<'*(44 - len(a))
-        if len(b) < length:
-            b = b + '<'*(44 - len(b))
-        self.type = a[0:2]
-        self.country = a[2:5]
-        surname_names = a[5:length].split('<<', 1)
-        if len(surname_names) < 2:
-            surname_names += ['']
-        self.surname, self.names = surname_names
-        self.names = self.names.replace('<', ' ').strip()
-        self.surname = self.surname.replace('<', ' ').strip()
-        self.number = b[0:9]
-        self.check_number = b[9]
-        self.nationality = b[10:13]
-        self.date_of_birth = b[13:19]
-        self.check_date_of_birth = b[19]
-        self.sex = b[20]
-        self.expiration_date = b[21:27]
-        self.check_expiration_date = b[27]
-        self.optional1 = b[28:length]
-        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
-                             MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth,
-                             MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date]
-        self.valid_line_lengths = [len_a == length, len_b == length]
-        self.valid_misc = [a[0]=='V']
-        self.valid_score = 10*sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) + 1
-        self.valid_score = 100*self.valid_score//(30+2+1+1)
-        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date = self.valid_check_digits
-        return self.valid_score == 100
-
 
 class MRZOCRCleaner(object):
     """
     The __call__ method of this class implements the "cleaning" of an OCR-obtained string in preparation for MRZ parsing.
     This is a singleton class, so rather than creating an instance, simply use its `apply` static method.
-
-
 
     >>> MRZOCRCleaner.apply('\\nuseless lines\\n  P<POLKOWALSKA < KWIATKOWSKA<<JOANNA<<<<<<<<<<<extrachars \\n  AA0000000OP0L6OOzoB4Fi4iz3I4<<<<<<<<<<<<<<<4  \\n  asdf  ')
     ['P<POLKOWALSKA<KWIATKOWSKA<<JOANNA<<<<<<<<<<<extrachars', 'AA00000000POL6002084F1412314<<<<<<<<<<<<<<<4']
