@@ -1,10 +1,11 @@
-'''
+""""
 PassportEye::MRZ: Machine-readable zone extraction and parsing.
 Image processing for MRZ extraction.
 
 Author: Konstantin Tretyakov
 License: MIT
-'''
+"""
+
 from skimage import transform, io, morphology, filters, measure
 import numpy as np
 import tempfile, os
@@ -243,7 +244,6 @@ class BoxToMRZ(object):
 
         if not mrz.valid:
             text, mrz = self._try_black_tophat(roi, text, mrz)
-
 
         return roi, text, mrz
 

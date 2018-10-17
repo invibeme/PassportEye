@@ -164,7 +164,7 @@ class MRZ(object):
 
         self.mrz_type = MRZ._guess_type(mrz_lines)
         try:
-            country = mrz_lines[0][2:5]  # Getting country COD (3 digits) on first line
+            country = self._fix_country(mrz_lines=mrz_lines)  # Getting country COD (3 digits) on first line
             parser = supported_parsers[country](mrz_lines)
         except Exception:
             parser = supported_parsers['default'](mrz_lines)
@@ -192,6 +192,12 @@ class MRZ(object):
             self.mrz_type = None
             self.valid = False
             self.valid_score = 0
+
+    def _fix_country(self, mrz_lines):
+        country = mrz_lines[0][2:5]
+        if country == 'D<<':
+            return 'DEU'
+        return country
 
     def to_dict(self):
         """Converts this object to an (ordered) dictionary of field-value pairs.
