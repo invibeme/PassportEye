@@ -161,7 +161,7 @@ class MRZBaseParser:
             'valid_expiration_date': self.valid_expiration_date,
             'valid_composite': self.valid_composite
         }
-        print("Estoy Eecutando MRZBaseParser")
+        print("Estoy Ejecutando MRZBaseParser TD1")
         return self.valid_score == 100, data
 
     def parse_td2(self):
@@ -173,12 +173,9 @@ class MRZBaseParser:
             b = b + '<' * (36 - len(b))
         self.type = a[0:2]
         self.country = a[2:5]
-        surname_names = a[5:36].split('<<', 1)
-        if len(surname_names) < 2:
-            surname_names += ['']
-        self.surname, self.names = surname_names
-        self.names = self.names.replace('<', ' ').strip()
-        self.surname = self.surname.replace('<', ' ').strip()
+        surname_names = a[5:36].split('<<')
+        self.surname = surname_names[0].replace('<', ' ').strip()
+        self.names = surname_names[1].replace('<', ' ').strip()
         self.number = b[0:9]
         self.check_number = b[9]
         self.nationality = b[10:13]
@@ -224,6 +221,7 @@ class MRZBaseParser:
             'valid_expiration_date': self.valid_expiration_date,
             'valid_composite': self.valid_composite
         }
+        print("Estoy Ejecutando MRZBaseParser TD2")
         return self.valid_score == 100, data
 
     def parse_td3(self):
@@ -291,6 +289,7 @@ class MRZBaseParser:
             'valid_personal_number': self.valid_personal_number,
             'valid_composite': self.valid_composite
         }
+        print("Estoy Ejecutando MRZBaseParser TD3")
         return self.valid_score == 100, data
 
     def parse_mrv(self, length):
@@ -348,6 +347,7 @@ class MRZBaseParser:
             'valid_date_of_birth': self.valid_date_of_birth,
             'valid_expiration_date': self.valid_expiration_date
         }
+        print("Estoy Ejecutando MRZBaseParser MRV%s" % length)
         return self.valid_score == 100, data
 
     @staticmethod
@@ -374,7 +374,7 @@ class MRZParserEsp(MRZBaseParser):
             c = c + '<' * (30 - len(c))
         self.type = a[0:2]
         self.country = a[2:5]
-        self.number = a[15:24]  # getting dni number of spain
+        self.number = a[15:24] if self.type == 'ID' else a[16:25]  # getting dni number of spain
         self.check_number = a[14]
         self.optional1 = a[15:30]
         self.date_of_birth = b[0:6]
@@ -427,12 +427,221 @@ class MRZParserEsp(MRZBaseParser):
             'valid_expiration_date': self.valid_expiration_date,
             'valid_composite': self.valid_composite
         }
-        print("Estoy Eecutando MRZParserEsp")
+        print("Estoy Ejecutando MRZParserEsp TD1")
+        return self.valid_score == 100, data
+
+
+class MRZParserDeu(MRZBaseParser):
+    """
+    class to parser ID Cards of Germany
+    """
+    def parse_td1(self):
+        a, b, c = self.mrz_lines
+        len_a, len_b, len_c = len(a), len(b), len(c)
+        if len(a) < 30:
+            a = a + '<' * (30 - len(a))
+        if len(b) < 30:
+            b = b + '<' * (30 - len(b))
+        if len(c) < 30:
+            c = c + '<' * (30 - len(c))
+        self.type = a[0:2]
+        self.country = a[2:5]
+        self.number = a[5:14]
+        self.check_number = a[14]
+        self.optional1 = a[15:30]
+        self.date_of_birth = b[0:6]
+        self.check_date_of_birth = b[6]
+        self.sex = b[7]
+        self.expiration_date = b[8:14]
+        self.check_expiration_date = b[14]
+        self.nationality = b[15:18]
+        self.optional2 = b[18:29]
+        self.check_composite = b[29]
+        surname_names = c.split('<<', 1)
+        if len(surname_names) < 2:
+            surname_names += ['']
+        self.surname, self.names = surname_names
+        self.names = self.names.replace('<', ' ').strip()
+        self.surname = self.surname.replace('<', ' ').strip()
+
+        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
+            MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and self._check_date(self.date_of_birth),
+            MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and self._check_date(self.expiration_date),
+            MRZCheckDigit.compute(a[5:30] + b[0:7] + b[8:15] + b[18:29]) == self.check_composite]
+        self.valid_line_lengths = [len_a == 30, len_b == 30, len_c == 30]
+        self.valid_misc = [a[0] in 'IAC']
+        self.valid_score = 10 * sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) + 1
+        self.valid_score = 100 * self.valid_score // (40 + 3 + 1 + 1)
+        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
+
+        data = {
+            'type': self.type.replace("<", ""),
+            'country': self.country.replace("<", ""),
+            'number': self.number.replace("<", ""),
+            'check_number': self.check_number.replace("<", ""),
+            'optional1': self.optional1.replace("<", ""),
+            'date_of_birth': self.date_of_birth.replace("<", ""),
+            'check_date_of_birth': self.check_date_of_birth.replace("<", ""),
+            'sex': self.sex.replace("<", ""),
+            'expiration_date': self.expiration_date.replace("<", ""),
+            'check_expiration_date': self.check_expiration_date.replace("<", ""),
+            'nationality': 'DEU' if self.nationality.replace("<", "") == 'D' else self.nationality.replace("<", ""),
+            'optional2': self.optional2.replace("<", ""),
+            'check_composite': self.check_composite.replace("<", ""),
+            'surname': self.surname.replace("<", ""),
+            'names': self.names.replace("<", ""),
+            'valid_check_digits': self.valid_check_digits,
+            'valid_line_lengths': self.valid_line_lengths,
+            'valid_misc': self.valid_misc,
+            'valid_score': self.valid_score,
+            'valid_number': self.valid_number,
+            'valid_date_of_birth': self.valid_date_of_birth,
+            'valid_expiration_date': self.valid_expiration_date,
+            'valid_composite': self.valid_composite
+        }
+        print("Estoy Ejecutando MRZParserDeu")
+        return self.valid_score == 100, data
+
+    def parse_td3(self):
+        a, b = self.mrz_lines
+        len_a, len_b = len(a), len(b)
+        if len(a) < 44:
+            a = a + '<' * (44 - len(a))
+        if len(b) < 44:
+            b = b + '<' * (44 - len(b))
+        self.type = a[0:2]
+        self.country = a[2:5]
+        surname_names = a[5:44].split('<<', 1)
+        if len(surname_names) < 2:
+            surname_names += ['']
+        self.surname, self.names = surname_names
+        self.names = self.names.replace('<', ' ').strip()
+        self.surname = self.surname.replace('<', ' ').strip()
+        self.number = b[0:9]
+        self.check_number = b[9]
+        self.nationality = b[10:13]
+        self.date_of_birth = b[13:19]
+        self.check_date_of_birth = b[19]
+        self.sex = b[20]
+        self.expiration_date = b[21:27]
+        self.check_expiration_date = b[27]
+        self.personal_number = b[28:42]
+        self.check_personal_number = b[42]
+        self.check_composite = b[43]
+
+        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
+            MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and self._check_date(self.date_of_birth),
+            MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and self._check_date(self.expiration_date),
+            MRZCheckDigit.compute(b[0:10] + b[13:20] + b[21:43]) == self.check_composite,
+                ((self.check_personal_number == '<' or self.check_personal_number == '0') and self.personal_number == '<<<<<<<<<<<<<<')  # PN is optional
+                or MRZCheckDigit.compute(self.personal_number) == self.check_personal_number]
+        self.valid_line_lengths = [len_a == 44, len_b == 44]
+        self.valid_misc = [a[0] in 'P']
+        self.valid_score = 10 * sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) + 1
+        self.valid_score = 100 * self.valid_score // (50 + 2 + 1 + 1)
+        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_personal_number, self.valid_composite = self.valid_check_digits
+
+        data = {
+            'type': self.type.replace("<", ""),
+            'country': self.country.replace("<", ""),
+            'names': self.names.replace("<", ""),
+            'surname': self.surname.replace("<", ""),
+            'number': self.number.replace("<", ""),
+            'check_number': self.check_number.replace("<", ""),
+            'nationality': 'DEU' if self.nationality.replace("<", "") == 'D' else self.nationality.replace("<", ""),
+            'date_of_birth': self.date_of_birth.replace("<", ""),
+            'check_date_of_birth': self.check_date_of_birth.replace("<", ""),
+            'sex': self.sex.replace("<", ""),
+            'expiration_date': self.expiration_date.replace("<", ""),
+            'check_expiration_date': self.check_expiration_date.replace("<", ""),
+            'personal_number': self.personal_number.replace("<", ""),
+            'check_personal_number': self.check_personal_number.replace("<", ""),
+            'check_composite': self.check_composite.replace("<", ""),
+            'valid_check_digits': self.valid_check_digits,
+            'valid_line_lengths': self.valid_line_lengths,
+            'valid_misc': self.valid_misc,
+            'valid_score': self.valid_score,
+            'valid_number': self.valid_number,
+            'valid_date_of_birth': self.valid_date_of_birth,
+            'valid_expiration_date': self.valid_expiration_date,
+            'valid_personal_number': self.valid_personal_number,
+            'valid_composite': self.valid_composite
+        }
+        print("Estoy Ejecutando MRZBaseParser TD3 Germany")
+        return self.valid_score == 100, data
+
+
+class MRZParserFra(MRZBaseParser):
+    """
+    class to parser ID Cards of France
+    """
+    def parse_td2(self):
+
+        a, b = self.mrz_lines
+        len_a, len_b = len(a), len(b)
+        if len(a) < 36:
+            a = a + '<' * (36 - len(a))
+        if len(b) < 36:
+            b = b + '<' * (36 - len(b))
+        self.type = a[0:2]
+        self.country = a[2:5]
+        self.names = a[5:30].replace('<', ' ').strip()
+        self.optional1 = a[30:36]
+        self.number = b[0:12]
+        self.check_number = b[12]
+        surname = b[13:27].replace('<<', ' ').strip()
+        self.surname = surname.replace('<', ' ').strip()
+        self.date_of_birth = b[27:33]
+        self.check_date_of_birth = b[33]
+        self.sex = b[34]
+        self.check_composite = b[35]
+
+        self.nationality = 'FRA' # b[10:13]
+        self.expiration_date = '' # b[21:27]
+        self.check_expiration_date = '' # b[27]
+
+
+        self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
+            MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and self._check_date(self.date_of_birth),
+            True, True]
+        self.valid_line_lengths = [len_a == 36, len_b == 36]
+        self.valid_misc = [a[0] in 'ACI']
+        self.valid_score = 10 * sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) + 1
+        self.valid_score = 100 * self.valid_score // (40 + 2 + 1 + 1)
+        self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
+
+        data = {
+            'type': self.type.replace("<", ""),
+            'country': self.country.replace("<", ""),
+            'number': self.number.replace("<", ""),
+            'check_number': self.check_number.replace("<", ""),
+            'optional1': self.optional1.replace("<", ""),
+            'date_of_birth': self.date_of_birth.replace("<", ""),
+            'check_date_of_birth': self.check_date_of_birth.replace("<", ""),
+            'sex': self.sex.replace("<", ""),
+            'expiration_date': self.expiration_date.replace("<", ""),
+            'check_expiration_date': self.check_expiration_date.replace("<", ""),
+            'nationality': self.nationality.replace("<", ""),
+            'check_composite': self.check_composite.replace("<", ""),
+            'surname': self.surname.replace("<", ""),
+            'names': self.names.replace("<", ""),
+            'valid_check_digits': self.valid_check_digits,
+            'valid_line_lengths': self.valid_line_lengths,
+            'valid_misc': self.valid_misc,
+            'valid_score': self.valid_score,
+            'valid_number': self.valid_number,
+            'valid_date_of_birth': self.valid_date_of_birth,
+            'valid_expiration_date': self.valid_expiration_date,
+            'valid_composite': self.valid_composite
+        }
+        print("Estoy Ejecutando MRZBaseParser TD2 En Francia")
         return self.valid_score == 100, data
 
 
 # dict with diferents classes of parser
 supported_parsers = {
     'ESP': MRZParserEsp,
+    'DEU': MRZParserDeu,
+    'FRA': MRZParserFra,
     'default': MRZBaseParser
 }

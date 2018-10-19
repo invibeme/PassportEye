@@ -196,6 +196,8 @@ class MRZ(object):
     def _fix_country(self, mrz_lines):
         country = mrz_lines[0][2:5]
         if country == 'D<<':
+            new_line = mrz_lines[0][:2] + "DEU" + mrz_lines[0][5:]
+            mrz_lines[0] = new_line
             return 'DEU'
         return country
 
