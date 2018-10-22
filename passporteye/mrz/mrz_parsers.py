@@ -137,7 +137,7 @@ class MRZBaseParser:
         self.valid_number, self.valid_date_of_birth, self.valid_expiration_date, self.valid_composite = self.valid_check_digits
 
         data = {
-            'type': self.type.replace("<", ""),
+            'type': "ID" if self.type == "I<" or self.type == "IO" else self.type.replace("<", ""),
             'country': self.country.replace("<", ""),
             'number': self.number.replace("<", ""),
             'check_number': self.check_number.replace("<", ""),
