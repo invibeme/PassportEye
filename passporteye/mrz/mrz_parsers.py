@@ -374,7 +374,7 @@ class MRZParserEsp(MRZBaseParser):
             c = c + '<' * (30 - len(c))
         self.type = a[0:2]
         self.country = a[2:5]
-        self.number = a[15:24] if self.type == 'ID' else a[16:25]  # getting dni number of spain
+        self.number = a[15:24] if self.type == 'ID' else a[16:25]  # getting dni number of spain ID->a[15:24] and IX->a[16:25]
         self.check_number = a[14]
         self.optional1 = a[15:30]
         self.date_of_birth = b[0:6]
@@ -596,9 +596,9 @@ class MRZParserFra(MRZBaseParser):
         self.sex = b[34]
         self.check_composite = b[35]
 
-        self.nationality = 'FRA' # b[10:13]
-        self.expiration_date = '' # b[21:27]
-        self.check_expiration_date = '' # b[27]
+        self.nationality = 'FRA'  # b[10:13]
+        self.expiration_date = ''  # b[21:27]
+        self.check_expiration_date = ''  # b[27]
 
 
         self.valid_check_digits = [MRZCheckDigit.compute(self.number) == self.check_number,
