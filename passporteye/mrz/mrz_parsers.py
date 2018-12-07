@@ -231,7 +231,7 @@ class MRZBaseParser:
             a = a + '<' * (44 - len(a))
         if len(b) < 44:
             b = b + '<' * (44 - len(b))
-        self.type = a[0:2]
+        self.type = a[0:1]
         self.country = a[2:5]
         surname_names = a[5:44].split('<<', 1)
         if len(surname_names) < 2:
